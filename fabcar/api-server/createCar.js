@@ -1,66 +1,38 @@
-/*
- * Copyright IBM Corp. All Rights Reserved.
- *
- * SPDX-License-Identifier: Apache-2.0
- */
-
 'use strict';
-
 const { Gateway, Wallets } = require('fabric-network');
 const path = require('path');
 const fs = require('fs');
 
-
-async function main( params ) {
+async function main(assetData) {
     try {
-        // load the network configuration
         const ccpPath = path.resolve(__dirname, '..', '..', 'test-network', 'organizations', 'peerOrganizations', 'org1.example.com', 'connection-org1.json');
-        let ccp = JSON.parse(fs.readFileSync(ccpPath, 'utf8'));
-
-        // Create a new file system based wallet for managing identities.
+        const ccp = JSON.parse(fs.readFileSync(ccpPath, 'utf8'));
         const walletPath = path.join(process.cwd(), 'wallet');
         const wallet = await Wallets.newFileSystemWallet(walletPath);
-        console.log(`Wallet path: ${walletPath}`);
-
-        // Check to see if we've already enrolled the user.
         const identity = await wallet.get('appUser');
-        if (!identity) {
-            console.log('An identity for the user "appUser" does not exist in the wallet');
-            console.log('Run the registerUser.js application before retrying');
-            return;
-        }
+        if (!identity) return;
 
-        // Create a new gateway for connecting to our peer node.
         const gateway = new Gateway();
         await gateway.connect(ccp, { wallet, identity: 'appUser', discovery: { enabled: true, asLocalhost: true } });
 
-        // Get the network (channel) our contract is deployed to.
         const network = await gateway.getNetwork('mychannel');
-
-        // Get the contract from the network.
         const contract = network.getContract('fabcar');
 
-        // gathering payload data
-        const key = params.key
-        const make = params.make
-        const model = params.model 
-        const color = params.color 
-        const owner = params.owner 
+        // createAsset(id, device_type, brand, purchase_year, department, assigned_to)
+        await contract.submitTransaction('createAsset',
+            assetData.key,
+            assetData.device_type,
+            assetData.brand,
+            assetData.purchase_year,
+            assetData.department,
+            assetData.owner
+        );
 
-        // Submit the specified transaction.
-        // createCar transaction - requires 5 argument, ex: ('createCar', 'CAR12', 'Honda', 'Accord', 'Black', 'Tom')
-        await contract.submitTransaction('createCar', `${ key }`, `${ make }`, `${ model }`, `${ color }`, `${ owner }`);
-        console.log('Transaction has been submitted');
-
-        // Disconnect from the gateway.
         await gateway.disconnect();
-
-    } 
-    catch (error) {
-        console.error(`Failed to create transaction: ${error}`);
-        process.exit(1);
+    } catch (error) {
+        console.error(`Failed to create: ${error}`);
+        throw error;
     }
 }
 
-// main();
-module.exports = { main }
+module.exports.main = main;

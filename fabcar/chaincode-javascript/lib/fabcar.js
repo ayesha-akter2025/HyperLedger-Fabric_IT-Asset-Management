@@ -1,113 +1,55 @@
-/*
- * Copyright IBM Corp. All Rights Reserved.
- *
- * SPDX-License-Identifier: Apache-2.0
- */
-
 'use strict';
 
 const { Contract } = require('fabric-contract-api');
 
-class FabCar extends Contract {
+class ITAssetManagement extends Contract {
 
     async initLedger(ctx) {
-        console.info('============= START : Initialize Ledger ===========');
-        const cars = [
+        const assets = [
             {
-                color: 'blue',
-                make: 'Toyota',
-                model: 'Prius',
-                owner: 'Tomoko',
+                id: 'ASSET001',
+                device_type: 'Laptop',
+                brand: 'Dell',
+                purchase_year: '2023',
+                department: 'CSE',
+                assigned_to: 'Dr. Smith',
             },
             {
-                color: 'red',
-                make: 'Ford',
-                model: 'Mustang',
-                owner: 'Brad',
-            },
-            {
-                color: 'green',
-                make: 'Hyundai',
-                model: 'Tucson',
-                owner: 'Jin Soo',
-            },
-            {
-                color: 'yellow',
-                make: 'Volkswagen',
-                model: 'Passat',
-                owner: 'Max',
-            },
-            {
-                color: 'black',
-                make: 'Tesla',
-                model: 'S',
-                owner: 'Adriana',
-            },
-            {
-                color: 'purple',
-                make: 'Peugeot',
-                model: '205',
-                owner: 'Michel',
-            },
-            {
-                color: 'white',
-                make: 'Chery',
-                model: 'S22L',
-                owner: 'Aarav',
-            },
-            {
-                color: 'violet',
-                make: 'Fiat',
-                model: 'Punto',
-                owner: 'Pari',
-            },
-            {
-                color: 'indigo',
-                make: 'Tata',
-                model: 'Nano',
-                owner: 'Valeria',
-            },
-            {
-                color: 'brown',
-                make: 'Holden',
-                model: 'Barina',
-                owner: 'Shotaro',
+                id: 'ASSET002',
+                device_type: 'Projector',
+                brand: 'Epson',
+                purchase_year: '2022',
+                department: 'EEE',
+                assigned_to: 'John Doe',
             },
         ];
 
-        for (let i = 0; i < cars.length; i++) {
-            cars[i].docType = 'car';
-            await ctx.stub.putState('CAR' + i, Buffer.from(JSON.stringify(cars[i])));
-            console.info('Added <--> ', cars[i]);
+        for (let i = 0; i < assets.length; i++) {
+            await ctx.stub.putState(assets[i].id, Buffer.from(JSON.stringify(assets[i])));
         }
-        console.info('============= END : Initialize Ledger ===========');
     }
 
-    async queryCar(ctx, carNumber) {
-        const carAsBytes = await ctx.stub.getState(carNumber); // get the car from chaincode state
-        if (!carAsBytes || carAsBytes.length === 0) {
-            throw new Error(`${carNumber} does not exist`);
-        }
-        console.log(carAsBytes.toString());
-        return carAsBytes.toString();
-    }
-
-    async createCar(ctx, carNumber, make, model, color, owner) {
-        console.info('============= START : Create Car ===========');
-
-        const car = {
-            color,
-            docType: 'car',
-            make,
-            model,
-            owner,
+    async createAsset(ctx, id, device_type, brand, purchase_year, department, assigned_to) {
+        const asset = {
+            id,
+            device_type,
+            brand,
+            purchase_year,
+            department,
+            assigned_to,
         };
-
-        await ctx.stub.putState(carNumber, Buffer.from(JSON.stringify(car)));
-        console.info('============= END : Create Car ===========');
+        await ctx.stub.putState(id, Buffer.from(JSON.stringify(asset)));
     }
 
-    async queryAllCars(ctx) {
+    async queryAsset(ctx, id) {
+        const assetAsBytes = await ctx.stub.getState(id);
+        if (!assetAsBytes || assetAsBytes.length === 0) {
+            throw new Error(`${id} does not exist`);
+        }
+        return assetAsBytes.toString();
+    }
+
+    async queryAllAssets(ctx) {
         const startKey = '';
         const endKey = '';
         const allResults = [];
@@ -117,29 +59,57 @@ class FabCar extends Contract {
             try {
                 record = JSON.parse(strValue);
             } catch (err) {
-                console.log(err);
                 record = strValue;
             }
             allResults.push({ Key: key, Record: record });
         }
-        console.info(allResults);
         return JSON.stringify(allResults);
     }
 
-    async changeCarOwner(ctx, carNumber, newOwner) {
-        console.info('============= START : changeCarOwner ===========');
-
-        const carAsBytes = await ctx.stub.getState(carNumber); // get the car from chaincode state
-        if (!carAsBytes || carAsBytes.length === 0) {
-            throw new Error(`${carNumber} does not exist`);
+    async changeAssetOwner(ctx, id, newOwner, newDept) {
+        const assetAsBytes = await ctx.stub.getState(id);
+        if (!assetAsBytes || assetAsBytes.length === 0) {
+            throw new Error(`${id} does not exist`);
         }
-        const car = JSON.parse(carAsBytes.toString());
-        car.owner = newOwner;
+        const asset = JSON.parse(assetAsBytes.toString());
+        asset.assigned_to = newOwner;
+        asset.department = newDept;
 
-        await ctx.stub.putState(carNumber, Buffer.from(JSON.stringify(car)));
-        console.info('============= END : changeCarOwner ===========');
+        await ctx.stub.putState(id, Buffer.from(JSON.stringify(asset)));
     }
 
+    // Advanced Search/Filter Logic
+    async queryByDepartment(ctx, department) {
+        let queryString = { selector: { department: department } };
+        let resultsIterator = await ctx.stub.getQueryResult(JSON.stringify(queryString));
+        return await this._GetAllResults(resultsIterator);
+    }
+
+    async queryByDeviceType(ctx, deviceType) {
+        let queryString = { selector: { device_type: deviceType } };
+        let resultsIterator = await ctx.stub.getQueryResult(JSON.stringify(queryString));
+        return await this._GetAllResults(resultsIterator);
+    }
+
+    async _GetAllResults(iterator) {
+        let allResults = [];
+        let res = await iterator.next();
+        while (!res.done) {
+            if (res.value && res.value.value.toString()) {
+                let jsonRes = {};
+                jsonRes.Key = res.value.key;
+                try {
+                    jsonRes.Record = JSON.parse(res.value.value.toString('utf8'));
+                } catch (err) {
+                    jsonRes.Record = res.value.value.toString('utf8');
+                }
+                allResults.push(jsonRes);
+            }
+            res = await iterator.next();
+        }
+        await iterator.close();
+        return JSON.stringify(allResults);
+    }
 }
 
-module.exports = FabCar;
+module.exports = ITAssetManagement;

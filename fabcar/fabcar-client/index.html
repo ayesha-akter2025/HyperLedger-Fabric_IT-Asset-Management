@@ -2,179 +2,245 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
+    <title>University IT Asset Management</title>
     <link rel="stylesheet" href="./styles.css">
-
-    <title>FabCar Using Hyperledger Fabric</title>
 </head>
 <body>
-    <div class="text-center">
-        <h1>
-            Fabcar
-        </h1>
-        <button onclick="getAll()">Get All Car</button>
-        <span>||</span>
-        <input id="search-input" type="text">
-        <button onclick="search()">Search</button>
+
+<header>
+    <div class="header-inner">
+        <div class="header-title">
+            <span class="header-icon">&#128187;</span>
+            <div>
+                <h1>IT Asset Management</h1>
+                <p>University Equipment Tracker</p>
+            </div>
+        </div>
+    </div>
+</header>
+
+<main>
+
+    <!-- ── Search & View ─────────────────────────────────── -->
+    <section class="card">
+        <div class="card-header">
+            <span class="card-icon">&#128269;</span>
+            <h2>Search &amp; View Assets</h2>
+        </div>
+
+        <div class="search-grid">
+            <div class="search-group">
+                <label>Search by Asset ID</label>
+                <div class="input-row">
+                    <input id="search-id"   type="text" placeholder="e.g. ASSET001">
+                    <button onclick="search('key')">Search</button>
+                </div>
+            </div>
+            <div class="search-group">
+                <label>Search by Department</label>
+                <div class="input-row">
+                    <input id="search-dept" type="text" placeholder="e.g. CSE">
+                    <button onclick="search('dept')">Search</button>
+                </div>
+            </div>
+            <div class="search-group">
+                <label>Search by Device Type</label>
+                <div class="input-row">
+                    <input id="search-type" type="text" placeholder="e.g. Laptop">
+                    <button onclick="search('type')">Search</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="view-all-row">
+            <button class="btn-outline" onclick="getAll()">&#128204; View All Assets</button>
+            <span id="result-count" class="result-count"></span>
+        </div>
+
         <div id="show-car"></div>
+    </section>
+
+    <div class="two-col">
+
+        <!-- ── Create ───────────────────────────────────────── -->
+        <section class="card">
+            <div class="card-header">
+                <span class="card-icon">&#10133;</span>
+                <h2>Register New Asset</h2>
+            </div>
+            <form id="createForm">
+                <div class="field">
+                    <label>Asset ID</label>
+                    <input name="key" placeholder="ASSET003" required />
+                </div>
+                <div class="field">
+                    <label>Device Type</label>
+                    <select name="device_type" required>
+                        <option value="" disabled selected>Select type…</option>
+                        <option>Laptop</option>
+                        <option>Monitor</option>
+                        <option>Projector</option>
+                        <option>Printer</option>
+                        <option>Desktop</option>
+                        <option>Scanner</option>
+                        <option>Other</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label>Brand</label>
+                    <input name="brand" placeholder="e.g. Dell, HP, Epson" required />
+                </div>
+                <div class="field">
+                    <label>Purchase Year</label>
+                    <input name="purchase_year" placeholder="e.g. 2023" required />
+                </div>
+                <div class="field">
+                    <label>Department</label>
+                    <input name="department" placeholder="e.g. CSE, EEE, BBA" required />
+                </div>
+                <div class="field">
+                    <label>Assigned To</label>
+                    <input name="owner" placeholder="Faculty / Staff name" required />
+                </div>
+                <button type="submit" class="btn-primary full-width">Register Asset</button>
+            </form>
+        </section>
+
+        <!-- ── Transfer ─────────────────────────────────────── -->
+        <section class="card">
+            <div class="card-header">
+                <span class="card-icon">&#8644;</span>
+                <h2>Transfer Asset</h2>
+            </div>
+            <p class="card-note">Updates both the assigned person and department.</p>
+            <form id="updateForm">
+                <div class="field">
+                    <label>Asset ID</label>
+                    <input name="key" placeholder="e.g. ASSET001" required />
+                </div>
+                <div class="field">
+                    <label>New Owner</label>
+                    <input name="owner" placeholder="New faculty / staff name" required />
+                </div>
+                <!-- Required: chaincode changeAssetOwner(id, newOwner, newDept) needs department -->
+                <div class="field">
+                    <label>New Department</label>
+                    <input name="department" placeholder="e.g. CSE, EEE, BBA" required />
+                </div>
+                <button type="submit" class="btn-primary full-width">Transfer Asset</button>
+            </form>
+        </section>
+
     </div>
+</main>
 
-    <div class="text-center form-container">
-        <h3 >Create Car</h3>
-        <form id="createForm" action="" name="createCar">
-            <div>
-                <label for="">Car ID/Key</label>
-                <input name="key" />
-            </div>
-            
-            <div>
-                <label for="">Made In</label>
-                <input name="make" />
-            </div>
+<script>
+    /* ── Render results ────────────────────────────────────── */
+    const typeColors = {
+        Laptop:   '#3b82f6',
+        Monitor:  '#10b981',
+        Projector:'#f59e0b',
+        Printer:  '#8b5cf6',
+        Desktop:  '#ef4444',
+        Scanner:  '#ec4899',
+        Other:    '#6b7280',
+    };
 
-            <div>
-                <label for="">Model</label>
-                <input name="model" />
-            </div>
+    function badgeColor(type) {
+        return typeColors[type] || typeColors.Other;
+    }
 
-            <div>
-                <label for="">Color</label>
-                <input name="color" />
-            </div>
+    function render(parsedRes) {
+        const container = document.getElementById('show-car');
+        const countEl   = document.getElementById('result-count');
 
-            <div>
-                <label for="">Owner</label>
-                <input name="owner" />
-            </div>
-
-            <div>
-                <button type="submit">Create</button>
-            </div>
-        </form>
-    </div>
-
-    <div class="text-center form-container">
-        <h3 >Update Owner</h3>
-        <form id="updateForm" action="" name="updateOwner">
-            <div>
-                <label for="">Car ID/Key</label>
-                <input name="key" />
-            </div>
-            
-            <div>
-                <label for="">New Owner</label>
-                <input name="owner" />
-            </div>
-
-            <div>
-                <button type="submit">Update</button>
-            </div>
-        </form>
-    </div>
-    
-    <script>
-
-        // CREATING NEW CAR
-        const createForm = document.getElementById('createForm')
-
-        // THIS IS AN EVENT LISTENER WHICH WILL RUN WHEN WE CLICK THE CREATE BUTTON
-        createForm.addEventListener("submit", function(event) {
-            event.preventDefault()
-            const bodyParam = new URLSearchParams( new FormData(createForm) )
-            
-                //CALLING CREATE API
-                fetch('http://localhost:3000/create', {
-                    method: 'POST',
-                    body: bodyParam
-                })
-                .then(res => {
-                    return res.json()
-                })
-                .then( parsedRes => {
-                    alert(parsedRes.message)
-                })
-                .catch(err => {
-                    console.error({ err })
-                })
-        });
-
-        // UPDATE: CHANGING CAR OWNER
-        const updateForm = document.getElementById('updateForm')
-
-        // THIS IS AN EVENT LISTENER WHICH WILL RUN WHEN WE CLICK THE UPDATE BUTTON
-        updateForm.addEventListener("submit", function(event) {
-            event.preventDefault()
-            const bodyParam = new URLSearchParams( new FormData(updateForm) )
-            
-                //CALLING UPDATE API
-                fetch('http://localhost:3000/update', {
-                    method: 'POST',
-                    body: bodyParam
-                })
-                .then(res => {
-                    if(res.status !== 200){
-                        alert('Unable to update')
-                        return
-                    }
-                    return res.json()
-                })
-                .then( parsedRes => {
-                    alert( parsedRes.message )
-                    getAll()
-                })
-                .catch(err => {
-                    alert(err.message)
-                    console.error({ err })
-                })
-        });
-
-
-        //SEARCH DATA
-        function search(){
-            // extracting value from input field
-            const value = document.getElementById('search-input').value
-            getAll( value )
-        }
-        
-        // GETTING ALL CAR DATA FROM API
-        function getAll( query ){
-            const api = query ? 'http://localhost:3000/get-car?key=' + query :  'http://localhost:3000/get-car'
-            fetch(api)
-                .then( res => {
-                    return res.json();
-                })
-                .then( parsedRes => {
-                    let carMarkup = ''; 
-                    parsedRes.forEach( item => {
-                        carMarkup = carMarkup +
-                            `<div class="car-item"> 
-                                <p>Key: ${ item.Key }</p>
-                                <p>Made In: ${ item.Record.make }</p>
-                                <p>Model: ${ item.Record.model }</p>
-                                <p>Color: ${ item.Record.color }</p>
-                                <p>Owner: ${ item.Record.owner }</p>
-                            </div>`
-                    })
-                    // getting the html container with id=show-car
-                    const carContainer = document.getElementById('show-car')
-
-                    //CLEANING EXISTING CAR HTML NODE/ELEMENT
-                    while (carContainer.hasChildNodes()) {
-                        carContainer.removeChild(carContainer.firstChild);
-                    }
-
-                    // Adding new car data markup
-                    carContainer.insertAdjacentHTML('beforeend', carMarkup)
-                })
-                .catch(err => {
-                    alert('Operation failed')
-                    console.error({ err })
-                })
+        if (!parsedRes || parsedRes.length === 0) {
+            container.innerHTML = '<p class="empty">No assets found.</p>';
+            countEl.textContent = '';
+            return;
         }
 
-        
-    </script>
+        countEl.textContent = parsedRes.length + ' result' + (parsedRes.length > 1 ? 's' : '');
+
+        let markup = '<div class="table-wrap"><table><thead><tr>'
+            + '<th>ID</th><th>Type</th><th>Brand</th>'
+            + '<th>Year</th><th>Department</th><th>Assigned To</th>'
+            + '</tr></thead><tbody>';
+
+        parsedRes.forEach(item => {
+            const key = item.Key    || item.id  || '—';
+            const rec = item.Record || item;
+            const color = badgeColor(rec.device_type);
+            markup += `<tr>
+                <td><code>${key}</code></td>
+                <td><span class="badge" style="background:${color}20;color:${color};border:1px solid ${color}40">${rec.device_type}</span></td>
+                <td>${rec.brand}</td>
+                <td>${rec.purchase_year}</td>
+                <td>${rec.department}</td>
+                <td>${rec.assigned_to}</td>
+            </tr>`;
+        });
+
+        markup += '</tbody></table></div>';
+        container.innerHTML = markup;
+    }
+
+    /* ── API calls ─────────────────────────────────────────── */
+    function getAll() {
+        fetch('http://localhost:3000/get-asset')
+            .then(res => res.json())
+            .then(render)
+            .catch(() => showError('Failed to load assets.'));
+    }
+
+    function search(param) {
+        const inputId = param === 'key' ? 'search-id' : 'search-' + param;
+        const val = document.getElementById(inputId).value.trim();
+        if (!val) return;
+        fetch(`http://localhost:3000/get-asset?${param}=${encodeURIComponent(val)}`)
+            .then(res => res.json())
+            .then(render)
+            .catch(() => showError('Search failed.'));
+    }
+
+    document.getElementById('createForm').addEventListener('submit', function (e) {
+        e.preventDefault();
+        fetch('http://localhost:3000/create', {
+            method: 'POST',
+            body: new URLSearchParams(new FormData(this))
+        })
+        .then(res => res.json())
+        .then(res => { showToast(res.message, 'success'); this.reset(); getAll(); })
+        .catch(() => showToast('Failed to register asset.', 'error'));
+    });
+
+    document.getElementById('updateForm').addEventListener('submit', function (e) {
+        e.preventDefault();
+        fetch('http://localhost:3000/update', {
+            method: 'POST',
+            body: new URLSearchParams(new FormData(this))
+        })
+        .then(res => res.json())
+        .then(res => { showToast(res.message, 'success'); this.reset(); getAll(); })
+        .catch(() => showToast('Failed to transfer asset.', 'error'));
+    });
+
+    /* ── Toast notification ────────────────────────────────── */
+    function showToast(msg, type) {
+        const t = document.createElement('div');
+        t.className = 'toast toast-' + type;
+        t.textContent = msg;
+        document.body.appendChild(t);
+        setTimeout(() => t.classList.add('show'), 10);
+        setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 3000);
+    }
+
+    function showError(msg) {
+        document.getElementById('show-car').innerHTML = `<p class="empty error">${msg}</p>`;
+    }
+
+    // Load all on page open
+    getAll();
+</script>
 </body>
 </html>

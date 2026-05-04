@@ -1,79 +1,65 @@
-/*
- * Module dependencies
- */
-const express = require('express')
-const cors = require('cors')
+'use strict';
+
+const express = require('express');
+const cors = require('cors');
+const bodyParser = require('body-parser');
 const query = require('./query');
-const createCar = require('./createCar')
-const changeOwner = require('./changeOwner')
-const bodyParser = require('body-parser')
+const createCar = require('./createCar');
+const changeOwner = require('./changeOwner');
 
+const app = express();
+app.use(cors());
+app.options('*', cors());
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
 
-const app = express()
+// GET /get-asset
+// ?key=ASSET001        → queryAsset       → single object, wrapped here into [{ Key, Record }]
+// ?dept=CSE            → queryByDepartment → already [{ Key, Record }]
+// ?type=Laptop         → queryByDeviceType → already [{ Key, Record }]
+// (no params)          → queryAllAssets    → already [{ Key, Record }]
+app.get('/get-asset', function (req, res) {
+    query.main(req.query)
+        .then(result => {
+            const parsedData = JSON.parse(result);
 
-// To control CORSS-ORIGIN-RESOURCE-SHARING( CORS )
-app.use(cors())
-app.options('*', cors()); 
+            // queryAsset returns a plain object — wrap it so the frontend render() always gets [{ Key, Record }]
+            if (req.query.key && !Array.isArray(parsedData)) {
+                res.send([{ Key: req.query.key, Record: parsedData }]);
+            } else {
+                res.send(parsedData);
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            res.status(500).send('FAILED TO GET DATA!');
+        });
+});
 
-// To parse encoded data
-app.use( bodyParser.json() );       // to support JSON-encoded bodies
-app.use(bodyParser.urlencoded({     // to support URL-encoded bodies
-  extended: true
-})); 
-
-
-// get all car
-app.get('/get-car', function (req, res) {
-    query.main( req.query )
-    .then(result => {
-        const parsedData = JSON.parse( result )
-        let carList
-
-        // if user search car
-        if(  req.query.key ){
-            carList = [
-                {
-                    Key: req.query.key,
-                    Record: {
-                        ...parsedData
-                    }
-                }
-            ]
-            res.send( carList )
-            return
-        }
-
-        carList = parsedData
-        res.send( carList )
-    })
-    .catch(err => {
-        console.error({ err })
-        res.send('FAILED TO GET DATA!')
-    })
-})
-
-// create a new car
+// POST /create
+// Body fields: key, device_type, brand, purchase_year, department, owner
 app.post('/create', function (req, res) {
-    createCar.main( req.body  )
-    .then(result => {
-        res.send({message: 'Created successfully'})
-    })
-    .catch(err => {
-        console.error({ err })
-        res.send('FAILED TO LOAD DATA!')
-    })
-})
+    createCar.main(req.body)
+        .then(() => {
+            res.send({ message: 'Asset Registered successfully' });
+        })
+        .catch(err => {
+            console.error(err);
+            res.status(500).send('FAILED TO CREATE ASSET!');
+        });
+});
 
-// change car owner
+// POST /update
+// Body fields: key, owner, department
 app.post('/update', function (req, res) {
-    changeOwner.main( req.body  )
-    .then(result => {
-        res.send({message: 'Updated successfully'})
-    })
-    .catch(err => {
-        console.error({ err })
-        res.send('FAILED TO LOAD DATA!')
-    })
-})
+    changeOwner.main(req.body)
+        .then(() => {
+            res.send({ message: 'Asset Owner Transferred successfully' });
+        })
+        .catch(err => {
+            console.error(err);
+            res.status(500).send('FAILED TO UPDATE OWNER!');
+        });
+});
 
-app.listen(3000, () => console.log('Server is running at port 3000'))
+app.listen(3000, () => console.log('Asset Management API running at port 3000'));
